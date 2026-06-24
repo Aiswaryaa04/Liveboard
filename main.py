@@ -72,8 +72,9 @@ async def room_websocket(websocket: WebSocket, room_id: str):
         while True:
             data = await websocket.receive_text()
             event = json.loads(data)
+            event_type = event.get("type")
 
-            if event.get("type") == "draw":
+            if event_type == "draw":
                 db = SessionLocal()
                 new_stroke = Stroke(
                     room_id=room_id,
@@ -85,9 +86,12 @@ async def room_websocket(websocket: WebSocket, room_id: str):
                 db.close()
                 await redis_client.publish(f"room:{room_id}", data)
 
-            elif event.get("type") == "cursor":
+            elif event_type == "cursor":
                 event["user_id"] = user_id
                 await redis_client.publish(f"room:{room_id}", json.dumps(event))
+
+            elif event_type in ("rect", "note_add", "note_move", "note_edit"):
+                await redis_client.publish(f"room:{room_id}", data)
 
     except WebSocketDisconnect:
         local_connections[room_id].remove(websocket)
