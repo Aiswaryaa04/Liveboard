@@ -1,6 +1,8 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+import redis.asyncio as redis
 import json
+import asyncio
 
 app = FastAPI(title="LiveBoard")
 
@@ -12,31 +14,47 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# In-memory room registry: room_id -> list of connected WebSocket clients
-# (Commit 2 will replace the cross-client broadcast with Redis pub/sub)
-rooms: dict[str, list[WebSocket]] = {}
+# Local connections this specific server instance is handling
+local_connections: dict[str, list[WebSocket]] = {}
+
+redis_client = redis.Redis(host="localhost", port=6379, db=2, decode_responses=True)
+
+
+async def redis_listener(room_id: str):
+    """
+    Subscribes to this room's Redis channel and forwards any message
+    to every client connected to THIS server instance for that room.
+    """
+    pubsub = redis_client.pubsub()
+    await pubsub.subscribe(f"room:{room_id}")
+
+    async for message in pubsub.listen():
+        if message["type"] == "message":
+            data = message["data"]
+            clients = local_connections.get(room_id, [])
+            for client in clients:
+                await client.send_text(data)
 
 
 @app.websocket("/ws/{room_id}")
 async def room_websocket(websocket: WebSocket, room_id: str):
     await websocket.accept()
 
-    if room_id not in rooms:
-        rooms[room_id] = []
-    rooms[room_id].append(websocket)
+    if room_id not in local_connections:
+        local_connections[room_id] = []
+        # First client in this room on this server instance — start listening to Redis for it
+        asyncio.create_task(redis_listener(room_id))
+
+    local_connections[room_id].append(websocket)
 
     try:
         while True:
             data = await websocket.receive_text()
-            event = json.loads(data)
-
-            # Broadcast this drawing event to every OTHER client in the same room
-            for client in rooms[room_id]:
-                if client != websocket:
-                    await client.send_text(data)
+            # Instead of broadcasting directly, publish to Redis —
+            # every server instance subscribed to this room (including this one) will receive it
+            await redis_client.publish(f"room:{room_id}", data)
 
     except WebSocketDisconnect:
-        rooms[room_id].remove(websocket)
-        if not rooms[room_id]:
-            del rooms[room_id]
-            
+        local_connections[room_id].remove(websocket)
+        if not local_connections[room_id]:
+            del local_connections[room_id]
