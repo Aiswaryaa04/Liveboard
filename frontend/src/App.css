@@ -1,22 +1,104 @@
+* { box-sizing: border-box; }
+
 body {
-  background: #0f172a;
   margin: 0;
-  font-family: -apple-system, sans-serif;
+  background: #f4f1ea;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
-.app-container {
-  max-width: 850px;
-  margin: 2rem auto;
-  text-align: center;
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
-h1 {
-  color: #f8fafc;
+.topbar {
+  width: 100%;
+  max-width: 950px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem 0.5rem 1rem;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #292524;
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.brand-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f97316, #ec4899);
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.status-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: #fff;
+  border: 1px solid #e7e2d8;
+}
+
+.status-pill.online { color: #16a34a; }
+.status-pill.offline { color: #dc2626; }
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.room-pill {
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid #e7e2d8;
+  color: #78716c;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.clear-btn {
+  padding: 0.45rem 0.9rem;
+  border-radius: 8px;
+  border: none;
+  background: #292524;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.clear-btn:hover { background: #44403c; }
+
+.board-wrap {
+  padding: 0.5rem;
 }
 
 .board-canvas {
   background: white;
-  border-radius: 12px;
+  border-radius: 16px;
   cursor: crosshair;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  box-shadow: 0 10px 30px rgba(41,37,36,0.15);
+  display: block;
+  border: 1px solid #e7e2d8;
 }
