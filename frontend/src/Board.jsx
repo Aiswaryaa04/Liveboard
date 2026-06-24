@@ -1,9 +1,9 @@
 import { useRef, useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
 import "./App.css";
 
-const ROOM_ID = "demo-room";
-
-function App() {
+export default function Board() {
+  const { roomId: ROOM_ID } = useParams();
   const canvasRef = useRef(null);
   const wsRef = useRef(null);
   const isDrawing = useRef(false);
@@ -19,14 +19,19 @@ function App() {
 
     const ws = new WebSocket(`ws://127.0.0.1:8002/ws/${ROOM_ID}`);
     wsRef.current = ws;
+
     ws.onopen = () => setConnected(true);
     ws.onclose = () => setConnected(false);
+
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      if (data.type === "draw") drawLine(ctx, data.x0, data.y0, data.x1, data.y1);
+      if (data.type === "draw") {
+        drawLine(ctx, data.x0, data.y0, data.x1, data.y1);
+      }
     };
+
     return () => ws.close();
-  }, []);
+  }, [ROOM_ID]);
 
   function drawLine(ctx, x0, y0, x1, y1) {
     ctx.beginPath();
@@ -49,10 +54,17 @@ function App() {
     if (!isDrawing.current) return;
     const pos = getPos(e);
     const ctx = canvasRef.current.getContext("2d");
+
     drawLine(ctx, lastPos.current.x, lastPos.current.y, pos.x, pos.y);
+
     wsRef.current.send(JSON.stringify({
-      type: "draw", x0: lastPos.current.x, y0: lastPos.current.y, x1: pos.x, y1: pos.y,
+      type: "draw",
+      x0: lastPos.current.x,
+      y0: lastPos.current.y,
+      x1: pos.x,
+      y1: pos.y,
     }));
+
     lastPos.current = pos;
   }
 
@@ -78,7 +90,18 @@ function App() {
             {connected ? "Connected" : "Disconnected"}
           </span>
           <span className="room-pill">Room: {ROOM_ID}</span>
-          <button className="clear-btn" onClick={clearCanvas}>Clear board</button>
+          <button
+            className="clear-btn"
+            onClick={() => {
+              navigator.clipboard.writeText(window.location.href);
+              alert("Link copied!");
+            }}
+          >
+            Copy link
+          </button>
+          <button className="clear-btn" onClick={clearCanvas}>
+            Clear board
+          </button>
         </div>
       </header>
 
@@ -97,5 +120,3 @@ function App() {
     </div>
   );
 }
-
-export default App;
