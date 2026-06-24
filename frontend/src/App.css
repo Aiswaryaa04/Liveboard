@@ -1,0 +1,22 @@
+body {
+  background: #0f172a;
+  margin: 0;
+  font-family: -apple-system, sans-serif;
+}
+
+.app-container {
+  max-width: 850px;
+  margin: 2rem auto;
+  text-align: center;
+}
+
+h1 {
+  color: #f8fafc;
+}
+
+.board-canvas {
+  background: white;
+  border-radius: 12px;
+  cursor: crosshair;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}

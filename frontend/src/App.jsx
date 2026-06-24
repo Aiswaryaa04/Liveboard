@@ -1,0 +1,93 @@
+import { useRef, useEffect, useState } from "react";
+import "./App.css";
+
+const ROOM_ID = "demo-room"; // hardcoded for now — Commit 3 adds real room creation/joining
+
+function App() {
+  const canvasRef = useRef(null);
+  const wsRef = useRef(null);
+  const isDrawing = useRef(false);
+  const lastPos = useRef({ x: 0, y: 0 });
+  const [connected, setConnected] = useState(false);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    ctx.strokeStyle = "#6366f1";
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+
+    const ws = new WebSocket(`ws://127.0.0.1:8002/ws/${ROOM_ID}`);
+    wsRef.current = ws;
+
+    ws.onopen = () => setConnected(true);
+    ws.onclose = () => setConnected(false);
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === "draw") {
+        drawLine(ctx, data.x0, data.y0, data.x1, data.y1);
+      }
+    };
+
+    return () => ws.close();
+  }, []);
+
+  function drawLine(ctx, x0, y0, x1, y1) {
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.stroke();
+  }
+
+  function getPos(e) {
+    const rect = canvasRef.current.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }
+
+  function handleMouseDown(e) {
+    isDrawing.current = true;
+    lastPos.current = getPos(e);
+  }
+
+  function handleMouseMove(e) {
+    if (!isDrawing.current) return;
+    const pos = getPos(e);
+    const ctx = canvasRef.current.getContext("2d");
+
+    drawLine(ctx, lastPos.current.x, lastPos.current.y, pos.x, pos.y);
+
+    // Send this stroke segment to the server, which broadcasts it to everyone else in the room
+    wsRef.current.send(JSON.stringify({
+      type: "draw",
+      x0: lastPos.current.x,
+      y0: lastPos.current.y,
+      x1: pos.x,
+      y1: pos.y,
+    }));
+
+    lastPos.current = pos;
+  }
+
+  function handleMouseUp() {
+    isDrawing.current = false;
+  }
+
+  return (
+    <div className="app-container">
+      <h1>LiveBoard {connected ? "🟢" : "🔴"}</h1>
+      <canvas
+        ref={canvasRef}
+        width={800}
+        height={500}
+        className="board-canvas"
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+      />
+    </div>
+  );
+}
+
+export default App;
