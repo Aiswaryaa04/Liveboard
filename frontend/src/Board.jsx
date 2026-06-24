@@ -38,7 +38,11 @@ export default function Board() {
         drawLine(ctx, data.x0, data.y0, data.x1, data.y1);
       } else if (data.type === "rect") {
         drawRect(ctx, data.x0, data.y0, data.x1, data.y1);
+      } else if (data.type === "rect_restore") {
+        drawRect(ctx, data.x0, data.y0, data.x1, data.y1);
       } else if (data.type === "note_add") {
+        setNotes((prev) => [...prev, { id: data.id, x: data.x, y: data.y, text: data.text }]);
+      } else if (data.type === "note_restore") {
         setNotes((prev) => [...prev, { id: data.id, x: data.x, y: data.y, text: data.text }]);
       } else if (data.type === "note_move") {
         setNotes((prev) => prev.map((n) => (n.id === data.id ? { ...n, x: data.x, y: data.y } : n)));
@@ -81,7 +85,7 @@ export default function Board() {
       const id = Math.random().toString(36).substring(2, 9);
       const note = { id, x: pos.x, y: pos.y, text: "New note" };
       setNotes((prev) => [...prev, note]);
-      wsRef.current.send(JSON.stringify({ type: "note_add", ...note }));
+      wsRef.current.send(JSON.stringify({ type: "note_add", ...note, ts: Date.now() }));
       return;
     }
     isDrawing.current = true;
@@ -133,14 +137,20 @@ export default function Board() {
   function handleBoardMouseUpForNotes(e) {
     if (draggingNote.current) {
       const pos = getPos(e);
-      wsRef.current.send(JSON.stringify({ type: "note_move", id: draggingNote.current, x: pos.x, y: pos.y }));
+      const note = notes.find((n) => n.id === draggingNote.current);
+      wsRef.current.send(JSON.stringify({
+        type: "note_move", id: draggingNote.current, x: pos.x, y: pos.y, text: note?.text, ts: Date.now(),
+      }));
       draggingNote.current = null;
     }
   }
 
   function handleNoteTextChange(id, newText) {
     setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, text: newText } : n)));
-    wsRef.current.send(JSON.stringify({ type: "note_edit", id, text: newText }));
+    const note = notes.find((n) => n.id === id);
+    wsRef.current.send(JSON.stringify({
+      type: "note_edit", id, x: note?.x, y: note?.y, text: newText, ts: Date.now(),
+    }));
   }
 
   function clearCanvas() {
