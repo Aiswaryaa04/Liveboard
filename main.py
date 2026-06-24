@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 import redis.asyncio as redis
 import json
 import asyncio
+import uuid
 
 from database import engine, Base, SessionLocal
 from models import Stroke
@@ -21,6 +22,7 @@ app.add_middleware(
 )
 
 local_connections: dict[str, list[WebSocket]] = {}
+room_users: dict[str, dict[str, WebSocket]] = {}
 redis_client = redis.Redis(host="localhost", port=6379, db=2, decode_responses=True)
 
 
@@ -38,13 +40,24 @@ async def redis_listener(room_id: str):
 @app.websocket("/ws/{room_id}")
 async def room_websocket(websocket: WebSocket, room_id: str):
     await websocket.accept()
+    user_id = str(uuid.uuid4())[:8]
 
     if room_id not in local_connections:
         local_connections[room_id] = []
         asyncio.create_task(redis_listener(room_id))
     local_connections[room_id].append(websocket)
 
-    # Replay saved history for this room so a reconnecting client sees the existing board
+    if room_id not in room_users:
+        room_users[room_id] = {}
+    room_users[room_id][user_id] = websocket
+
+    await websocket.send_text(json.dumps({"type": "your_id", "user_id": user_id}))
+
+    await redis_client.publish(f"room:{room_id}", json.dumps({
+        "type": "presence",
+        "users": list(room_users[room_id].keys())
+    }))
+
     db: Session = SessionLocal()
     past_strokes = db.query(Stroke).filter(Stroke.room_id == room_id).order_by(Stroke.id).all()
     for stroke in past_strokes:
@@ -61,7 +74,6 @@ async def room_websocket(websocket: WebSocket, room_id: str):
             event = json.loads(data)
 
             if event.get("type") == "draw":
-                # Persist every stroke to Postgres before broadcasting it
                 db = SessionLocal()
                 new_stroke = Stroke(
                     room_id=room_id,
@@ -71,10 +83,19 @@ async def room_websocket(websocket: WebSocket, room_id: str):
                 db.add(new_stroke)
                 db.commit()
                 db.close()
+                await redis_client.publish(f"room:{room_id}", data)
 
-            await redis_client.publish(f"room:{room_id}", data)
+            elif event.get("type") == "cursor":
+                event["user_id"] = user_id
+                await redis_client.publish(f"room:{room_id}", json.dumps(event))
 
     except WebSocketDisconnect:
         local_connections[room_id].remove(websocket)
+        del room_users[room_id][user_id]
         if not local_connections[room_id]:
             del local_connections[room_id]
+        else:
+            await redis_client.publish(f"room:{room_id}", json.dumps({
+                "type": "presence",
+                "users": list(room_users[room_id].keys())
+            }))

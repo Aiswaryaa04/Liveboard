@@ -9,6 +9,9 @@ export default function Board() {
   const isDrawing = useRef(false);
   const lastPos = useRef({ x: 0, y: 0 });
   const [connected, setConnected] = useState(false);
+  const [myUserId, setMyUserId] = useState(null);
+  const [otherCursors, setOtherCursors] = useState({});
+  const [userCount, setUserCount] = useState(1);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -25,8 +28,18 @@ export default function Board() {
 
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
+
       if (data.type === "draw") {
         drawLine(ctx, data.x0, data.y0, data.x1, data.y1);
+      } else if (data.type === "your_id") {
+        setMyUserId(data.user_id);
+      } else if (data.type === "presence") {
+        setUserCount(data.users.length);
+      } else if (data.type === "cursor") {
+        setOtherCursors((prev) => {
+          if (data.user_id === myUserId) return prev;
+          return { ...prev, [data.user_id]: { x: data.x, y: data.y } };
+        });
       }
     };
 
@@ -51,18 +64,20 @@ export default function Board() {
   }
 
   function handleMouseMove(e) {
-    if (!isDrawing.current) return;
     const pos = getPos(e);
-    const ctx = canvasRef.current.getContext("2d");
 
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: "cursor", x: pos.x, y: pos.y }));
+    }
+
+    if (!isDrawing.current) return;
+    const ctx = canvasRef.current.getContext("2d");
     drawLine(ctx, lastPos.current.x, lastPos.current.y, pos.x, pos.y);
 
     wsRef.current.send(JSON.stringify({
       type: "draw",
-      x0: lastPos.current.x,
-      y0: lastPos.current.y,
-      x1: pos.x,
-      y1: pos.y,
+      x0: lastPos.current.x, y0: lastPos.current.y,
+      x1: pos.x, y1: pos.y,
     }));
 
     lastPos.current = pos;
@@ -89,6 +104,7 @@ export default function Board() {
             <span className="status-dot" />
             {connected ? "Connected" : "Disconnected"}
           </span>
+          <span className="room-pill">👥 {userCount} online</span>
           <span className="room-pill">Room: {ROOM_ID}</span>
           <button
             className="clear-btn"
@@ -116,6 +132,22 @@ export default function Board() {
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
         />
+        {Object.entries(otherCursors).map(([id, pos]) => (
+          <div
+            key={id}
+            style={{
+              position: "absolute",
+              left: pos.x,
+              top: pos.y,
+              width: 10,
+              height: 10,
+              borderRadius: "50%",
+              background: "#ec4899",
+              pointerEvents: "none",
+              transform: "translate(-50%, -50%)",
+            }}
+          />
+        ))}
       </main>
     </div>
   );

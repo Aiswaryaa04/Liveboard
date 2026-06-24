@@ -92,6 +92,7 @@ body {
 
 .board-wrap {
   padding: 0.5rem;
+  position: relative;
 }
 
 .board-canvas {
@@ -102,3 +103,4 @@ body {
   display: block;
   border: 1px solid #e7e2d8;
 }
+
